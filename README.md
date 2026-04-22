@@ -1,7 +1,7 @@
 # feedstream
 
 ![Status](https://img.shields.io/badge/status-in%20development-yellow)
-![CI](https://github.com/YOUR_USERNAME/feedstream/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Archangel-77/feedstream/actions/workflows/ci.yml/badge.svg)
 
 A real-time data ingestion and query service built on live AIS maritime ship-tracking data.
 
