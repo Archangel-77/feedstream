@@ -6,6 +6,7 @@ import uuid
 
 import websockets
 from sqlalchemy import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from feedstream.database import AsyncSessionLocal
 from feedstream.models import Event
@@ -59,23 +60,26 @@ async def _connect_and_consume() -> None:
         async for raw in ws:
             if _shutdown.is_set():
                 break
-            await _handle_message(raw)
+            event_dict = parse_ais_message(raw)
+            if event_dict:
+                async with AsyncSessionLocal() as session:
+                    await write_event(session, event_dict)
 
 
-async def _handle_message(raw: str) -> None:
+def parse_ais_message(raw: str) -> dict | None:
+    """Parse a raw AIS JSON string into an event dict ready for DB insert."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
         logger.warning("Received non-JSON message, skipping")
-        return
+        return None
 
     message_type = data.get("MessageType", "unknown")
     mmsi = str(data.get("MetaData", {}).get("MMSI", ""))
     time_utc = data.get("MetaData", {}).get("time_utc", "")
-
     dedup_key = f"{mmsi}:{message_type}:{time_utc}" if mmsi and time_utc else None
 
-    event = {
+    return {
         "id": uuid.uuid4(),
         "source": "aisstream",
         "event_type": message_type,
@@ -83,11 +87,12 @@ async def _handle_message(raw: str) -> None:
         "dedup_key": dedup_key,
     }
 
-    async with AsyncSessionLocal() as session:
-        await session.execute(insert(Event).values(**event))
-        await session.commit()
 
-    logger.debug("Ingested event type=%s mmsi=%s", message_type, mmsi)
+async def write_event(session: AsyncSession, event_dict: dict) -> None:
+    """Insert a single event dict into the DB."""
+    await session.execute(insert(Event).values(**event_dict))
+    await session.commit()
+    logger.debug("Ingested event type=%s", event_dict.get("event_type"))
 
 
 if __name__ == "__main__":
