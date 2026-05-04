@@ -25,7 +25,7 @@ feedstream connects to the global AIS (Automatic Identification System) stream, 
 
 - [x] **Week 0** — Project scaffold, CI pipeline, Postgres + Redis in Docker
 - [x] **Week 1** — Vertical slice: AIS source → database → HTTP response
-- [ ] **Week 2** — Worker hardening: dedup, backoff, circuit breaker, structured logging
+- [x] **Week 2** — Worker hardening: dedup, backoff, circuit breaker, structured logging
 - [ ] **Week 3** — Query API: filtering, cursor pagination, Redis caching, rate limiting
 - [ ] **Week 4** — Observability: Prometheus metrics, Grafana dashboard, request tracing
 - [ ] **Week 5** — Deployment: live on Fly.io, retention policy, status badge

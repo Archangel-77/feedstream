@@ -57,11 +57,11 @@
 
 **Goal:** The worker survives reality. This is where the project starts being interesting.
 
-- [ ] Add a `dedup_key` unique index and implement idempotent inserts (Postgres `ON CONFLICT DO NOTHING`). Write a test that ingests the same event twice and asserts only one row exists.
-- [ ] Add reconnection logic with exponential backoff + jitter when the upstream drops. Use a library (`tenacity`) — don't hand‑roll. Write a test using a fake source that fails N times before succeeding.
-- [ ] Add graceful shutdown: the worker catches SIGTERM, finishes its current batch, flushes pending writes, exits cleanly. Test it.
-- [ ] Add structured logging with `structlog` or `python‑json‑logger`. Every log line: timestamp, level, event, correlation_id. No more `print()` anywhere.
-- [ ] Add a basic circuit breaker: if the upstream fails more than X times in Y seconds, pause for Z before retrying. This is the kind of detail that makes a senior dev nod.
+- [+] Add a `dedup_key` unique index and implement idempotent inserts (Postgres `ON CONFLICT DO NOTHING`). Write a test that ingests the same event twice and asserts only one row exists.
+- [+] Add reconnection logic with exponential backoff + jitter when the upstream drops. Use a library (`tenacity`) — don't hand‑roll. Write a test using a fake source that fails N times before succeeding.
+- [+] Add graceful shutdown: the worker catches SIGTERM, finishes its current batch, flushes pending writes, exits cleanly. Test it.
+- [+] Add structured logging with `structlog` or `python‑json‑logger`. Every log line: timestamp, level, event, correlation_id. No more `print()` anywhere.
+- [+] Add a basic circuit breaker: if the upstream fails more than X times in Y seconds, pause for Z before retrying. This is the kind of detail that makes a senior dev nod.
 
 **Target commits (~12):** add dedup constraint, implement idempotent insert, add dedup test, add retry with backoff, add retry tests, add graceful shutdown handler, add shutdown test, switch to structlog, add correlation ids, add circuit breaker, add circuit breaker tests, README update.
 
