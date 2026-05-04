@@ -23,4 +23,7 @@ class Event(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    dedup_key: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
+    dedup_key: Mapped[str | None] = mapped_column(Text, unique=True, nullable=False)
+
+
+
