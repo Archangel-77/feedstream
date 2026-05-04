@@ -35,6 +35,14 @@ class CircuitBreaker:
         if self.state == "OPEN":
             if self.last_failure_time and (asyncio.get_event_loop().time() - self.last_failure_time) > self.timeout:
                 self.state = "HALF_OPEN"
+                # In half-open state, allow one call to proceed
+                try:
+                    result = func(*args, **kwargs)
+                    self._success()  # If successful, reset circuit
+                    return result
+                except Exception:
+                    self._failure()  # If failed, stay open
+                    raise
             else:
                 raise Exception("Circuit breaker is OPEN")
         
