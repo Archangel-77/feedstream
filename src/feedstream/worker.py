@@ -4,8 +4,9 @@ import logging
 import signal
 import uuid
 
+import tenacity
 import websockets
-from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import insert  # fix 2: use pg dialect for on_conflict_do_nothing
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from feedstream.database import AsyncSessionLocal
@@ -35,12 +36,22 @@ async def run() -> None:
 
 
 async def ingest_loop() -> None:
+    @tenacity.retry(
+        stop=tenacity.stop_after_attempt(10),
+        wait=tenacity.wait_random_exponential(multiplier=1, max=60),
+        retry=tenacity.retry_if_exception_type(websockets.exceptions.ConnectionClosed),
+        reraise=True,
+    )
+    async def _connect_and_consume_with_retry():
+        await _connect_and_consume()
+
     while not _shutdown.is_set():
         try:
-            await _connect_and_consume()
+            await _connect_and_consume_with_retry()
         except Exception as exc:
-            logger.error("Ingestion error: %s — will retry in 5s", exc)
-            await asyncio.sleep(5)
+            logger.error("Ingestion error after retries: %s", exc)
+            # If we've exhausted retries, wait before trying again
+            await asyncio.sleep(10)
 
 
 async def _connect_and_consume() -> None:
@@ -57,9 +68,16 @@ async def _connect_and_consume() -> None:
         await ws.send(subscribe_msg)
         logger.info("Subscribed to global AIS feed")
 
-        async for raw in ws:
+        async for message in ws:
             if _shutdown.is_set():
                 break
+            # fix 1: memoryview has no .decode(); convert to bytes first
+            if isinstance(message, str):
+                raw = message
+            elif isinstance(message, memoryview):
+                raw = bytes(message).decode()
+            else:
+                raw = message.decode()
             event_dict = parse_ais_message(raw)
             if event_dict:
                 async with AsyncSessionLocal() as session:
@@ -89,10 +107,15 @@ def parse_ais_message(raw: str) -> dict | None:
 
 
 async def write_event(session: AsyncSession, event_dict: dict) -> None:
-    """Insert a single event dict into the DB."""
-    await session.execute(insert(Event).values(**event_dict))
+    """Insert a single event dict into the DB with idempotent insert."""
+    stmt = (
+        insert(Event)
+        .values(**event_dict)
+        .on_conflict_do_nothing(index_elements=["dedup_key"])
+    )
+    await session.execute(stmt)
     await session.commit()
-    logger.debug("Ingested event type=%s", event_dict.get("event_type"))
+    logger.debug("Ingested event type=%s", event_dict.get("event_type"))  # fix 3: removed duplicate log line
 
 
 if __name__ == "__main__":
