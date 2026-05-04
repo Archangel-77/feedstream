@@ -3,6 +3,7 @@ import json
 import logging
 import signal
 import uuid
+from collections import defaultdict
 
 import tenacity
 import websockets
@@ -19,6 +20,44 @@ logger = logging.getLogger(__name__)
 AIS_WS_URL = "wss://stream.aisstream.io/v0/stream"
 
 _shutdown = asyncio.Event()
+
+# Simple circuit breaker implementation
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+        
+    def call(self, func, *args, **kwargs):
+        """Execute function with circuit breaker logic."""
+        if self.state == "OPEN":
+            if self.last_failure_time and (asyncio.get_event_loop().time() - self.last_failure_time) > self.timeout:
+                self.state = "HALF_OPEN"
+            else:
+                raise Exception("Circuit breaker is OPEN")
+        
+        try:
+            result = func(*args, **kwargs)
+            self._success()
+            return result
+        except Exception as e:
+            self._failure()
+            raise e
+    
+    def _success(self):
+        self.failure_count = 0
+        self.state = "CLOSED"
+        
+    def _failure(self):
+        self.failure_count += 1
+        self.last_failure_time = asyncio.get_event_loop().time()
+        if self.failure_count >= self.failure_threshold:
+            self.state = "OPEN"
+
+# Global circuit breaker instance
+ais_circuit_breaker = CircuitBreaker()
 
 
 def _handle_signal() -> None:
@@ -70,24 +109,35 @@ async def _connect_and_consume() -> None:
 
     logger.info("Connecting to AIS stream at %s", AIS_WS_URL)
 
-    async with websockets.connect(AIS_WS_URL) as ws:
-        await ws.send(subscribe_msg)
-        logger.info("Subscribed to global AIS feed")
+    # Use circuit breaker for connection
+    def connect_func():
+        return websockets.connect(AIS_WS_URL)
+    
+    try:
+        ws = ais_circuit_breaker.call(connect_func)
+        async with ws as ws_conn:
+            await ws_conn.send(subscribe_msg)
+            logger.info("Subscribed to global AIS feed")
 
-        async for message in ws:
-            if _shutdown.is_set():
-                break
-            # fix 1: memoryview has no .decode(); convert to bytes first
-            if isinstance(message, str):
-                raw = message
-            elif isinstance(message, memoryview):
-                raw = bytes(message).decode()
-            else:
-                raw = message.decode()
-            event_dict = parse_ais_message(raw)
-            if event_dict:
-                async with AsyncSessionLocal() as session:
-                    await write_event(session, event_dict)
+            async for message in ws_conn:
+                if _shutdown.is_set():
+                    break
+                # fix 1: memoryview has no .decode(); convert to bytes first
+                if isinstance(message, str):
+                    raw = message
+                elif isinstance(message, memoryview):
+                    raw = bytes(message).decode()
+                else:
+                    raw = message.decode()
+                event_dict = parse_ais_message(raw)
+                if event_dict:
+                    async with AsyncSessionLocal() as session:
+                        await write_event(session, event_dict)
+    except Exception as e:
+        logger.error("Connection failed: %s", e)
+        # Reset circuit breaker on successful connection
+        ais_circuit_breaker._success()
+        raise
 
 
 def parse_ais_message(raw: str) -> dict | None:
