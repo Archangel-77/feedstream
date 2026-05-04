@@ -23,6 +23,11 @@ _shutdown = asyncio.Event()
 def _handle_signal() -> None:
     logger.info("Shutdown signal received, stopping worker...")
     _shutdown.set()
+    
+    # Cancel any pending tasks
+    for task in asyncio.all_tasks():
+        if task != asyncio.current_task():
+            task.cancel()
 
 
 async def run() -> None:
