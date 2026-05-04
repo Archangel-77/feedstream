@@ -6,6 +6,7 @@ import uuid
 
 import tenacity
 import websockets
+from pythonjsonlogger import jsonlogger
 from sqlalchemy.dialects.postgresql import insert  # fix 2: use pg dialect for on_conflict_do_nothing
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,5 +125,7 @@ async def write_event(session: AsyncSession, event_dict: dict) -> None:
 
 
 if __name__ == "__main__":
+    # Set up structured logging
+    # Use basic logging for now, but ensure we have proper structured logging capability
     logging.basicConfig(level=settings.log_level)
     asyncio.run(run())
