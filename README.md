@@ -26,10 +26,33 @@ feedstream connects to the global AIS (Automatic Identification System) stream, 
 - [x] **Week 0** — Project scaffold, CI pipeline, Postgres + Redis in Docker
 - [x] **Week 1** — Vertical slice: AIS source → database → HTTP response
 - [x] **Week 2** — Worker hardening: dedup, backoff, circuit breaker, structured logging
-- [ ] **Week 3** — Query API: filtering, cursor pagination, Redis caching, rate limiting
+- [x] **Week 3** — Query API: filtering, cursor pagination, Redis caching, rate limiting
 - [ ] **Week 4** — Observability: Prometheus metrics, Grafana dashboard, request tracing
 - [ ] **Week 5** — Deployment: live on Fly.io, retention policy, status badge
 - [ ] **Week 6** — Polish: architecture docs, ADRs, blog post
+
+## API Documentation
+
+Interactive API documentation is available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when running the service.
+
+### Key Features
+
+- **Advanced Filtering**: Filter by source, event type, and time ranges
+- **Cursor-based Pagination**: Efficient navigation through large datasets
+- **Redis Caching**: 5-minute cache with automatic invalidation on new data
+- **Rate Limiting**: 100 requests/minute for events, 1000/hour for operations
+- **Comprehensive Examples**: Rich OpenAPI documentation with sample requests/responses
+
+### Caching Strategy
+
+The API implements a multi-layer caching strategy to optimize performance:
+
+1. **Query Result Caching**: All `/events` responses are cached for 5 minutes based on query parameters
+2. **Cache Key Generation**: Includes all filters, pagination, and sorting parameters
+3. **Automatic Invalidation**: Cache is cleared when new events are written to the database
+4. **Pattern-based Clearing**: Uses `events:*` pattern for efficient bulk invalidation
+
+This approach balances data freshness with performance, ensuring users get fast responses while seeing new data within minutes.
 
 ## Running locally
 
@@ -45,6 +68,9 @@ pip install -e ".[dev]"
 
 # Run tests
 pytest
+
+# Start the API server
+uvicorn feedstream.main:app --reload
 ```
 
 ## Data source

@@ -18,11 +18,11 @@ def test_circuit_breaker_open():
     """Test that circuit breaker opens after threshold failures."""
     cb = CircuitBreaker(failure_threshold=2, timeout=1)
     
-    # First failure
-    with pytest.raises(Exception, match="Circuit breaker is OPEN"):
+    # First failure should raise original exception (circuit not open yet)
+    with pytest.raises(Exception, match="failed"):
         cb.call(lambda: exec("raise Exception('failed')"))
     
-    # Second failure should open the circuit
+    # Second failure should open the circuit and raise circuit breaker exception
     with pytest.raises(Exception, match="Circuit breaker is OPEN"):
         cb.call(lambda: exec("raise Exception('failed')"))
     
@@ -43,6 +43,9 @@ def test_circuit_breaker_half_open():
     import time
     time.sleep(1)
     
+    # Check state to trigger transition
+    cb.check_state()
+    
     # Should be half-open now
     assert cb.state == "HALF_OPEN"
     
@@ -59,6 +62,11 @@ def test_circuit_breaker_reset_on_success():
     # First failure should open circuit
     with pytest.raises(Exception, match="Circuit breaker is OPEN"):
         cb.call(lambda: exec("raise Exception('failed')"))
+    
+    # Wait for timeout and check state to trigger transition
+    import time
+    time.sleep(1)
+    cb.check_state()
     
     # Should reset on successful call
     result = cb.call(lambda: "success")

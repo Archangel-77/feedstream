@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from feedstream.database import AsyncSessionLocal
 from feedstream.models import Event
 from feedstream.settings import settings
+from feedstream.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +33,12 @@ class CircuitBreaker:
         
     def call(self, func, *args, **kwargs):
         """Execute function with circuit breaker logic."""
+        import time
+        
+        # Check if we should transition from OPEN to HALF_OPEN
         if self.state == "OPEN":
-            if self.last_failure_time and (asyncio.get_event_loop().time() - self.last_failure_time) > self.timeout:
+            if self.last_failure_time and (time.time() - self.last_failure_time) > self.timeout:
                 self.state = "HALF_OPEN"
-                # In half-open state, allow one call to proceed
-                try:
-                    result = func(*args, **kwargs)
-                    self._success()  # If successful, reset circuit
-                    return result
-                except Exception:
-                    self._failure()  # If failed, stay open
-                    raise
             else:
                 raise Exception("Circuit breaker is OPEN")
         
@@ -52,17 +48,31 @@ class CircuitBreaker:
             return result
         except Exception as e:
             self._failure()
-            raise e
+            # If circuit just opened, raise circuit breaker exception
+            if self.state == "OPEN":
+                raise Exception("Circuit breaker is OPEN")
+            else:
+                # Otherwise, re-raise the original exception
+                raise e
     
     def _success(self):
         self.failure_count = 0
         self.state = "CLOSED"
         
     def _failure(self):
+        import time
         self.failure_count += 1
-        self.last_failure_time = asyncio.get_event_loop().time()
+        self.last_failure_time = time.time()
         if self.failure_count >= self.failure_threshold:
             self.state = "OPEN"
+    
+    def check_state(self):
+        """Check if circuit breaker should transition to HALF_OPEN based on timeout."""
+        import time
+        if self.state == "OPEN" and self.last_failure_time:
+            if time.time() - self.last_failure_time > self.timeout:
+                self.state = "HALF_OPEN"
+        return self.state
 
 # Global circuit breaker instance
 ais_circuit_breaker = CircuitBreaker()
@@ -177,9 +187,17 @@ async def write_event(session: AsyncSession, event_dict: dict) -> None:
         .values(**event_dict)
         .on_conflict_do_nothing(index_elements=["dedup_key"])
     )
-    await session.execute(stmt)
+    result = await session.execute(stmt)
     await session.commit()
-    logger.debug("Ingested event type=%s", event_dict.get("event_type"))  # fix 3: removed duplicate log line
+    
+    # If event was inserted (not duplicate), invalidate cache
+    if result.rowcount > 0:
+        redis_client_instance = await get_redis_client()
+        # Delete all events cache entries
+        await redis_client_instance.delete_pattern("events:*")
+        logger.debug("Ingested event type=%s and invalidated cache", event_dict.get("event_type"))
+    else:
+        logger.debug("Duplicate event skipped, type=%s", event_dict.get("event_type"))
 
 
 if __name__ == "__main__":
