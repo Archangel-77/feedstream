@@ -35,6 +35,10 @@ feedstream connects to the global AIS (Automatic Identification System) stream, 
 
 Interactive API documentation is available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when running the service.
 
+### Swagger Preview
+
+![Swagger UI preview](docs/images/swagger-ui.png)
+
 ### Key Features
 
 - **Advanced Filtering**: Filter by source, event type, and time ranges

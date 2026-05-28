@@ -6,16 +6,14 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from feedstream.database import get_session
 from feedstream.models import Event
-from feedstream.schemas import EventQueryParams, PaginatedEventsResponse
 from feedstream.redis_client import get_redis_client
-from feedstream.rate_limiter import limiter, get_rate_limit
-
-from feedstream.rate_limiter import limiter, rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from feedstream.rate_limiter import get_rate_limit, limiter, rate_limit_exceeded_handler
+from feedstream.schemas import PaginatedEventsResponse
 
 app = FastAPI(
     title="feedstream",
@@ -242,7 +240,7 @@ async def list_events(
                     or_(Event.received_at > cursor_received_at,
                         and_(Event.received_at == cursor_received_at, Event.id > cursor_event_id))
                 )
-        except (ValueError, IndexError) as e:
+        except (ValueError, IndexError):
             raise HTTPException(status_code=400, detail="Invalid cursor format")
     
     # Apply sorting and limit

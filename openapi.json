@@ -1,1 +1,478 @@
-{"openapi":"3.1.0","info":{"title":"feedstream","description":"Real-time AIS maritime data ingestion and query service with advanced filtering, pagination, and caching","contact":{"name":"feedstream API Support","url":"https://github.com/Archangel-77/feedstream","email":"support@example.com"},"license":{"name":"MIT License","url":"https://opensource.org/licenses/MIT"},"version":"0.3.0"},"paths":{"/healthz":{"get":{"tags":["ops"],"summary":"Health Check","description":"Returns the current health status of the API service.","operationId":"health_healthz_get","responses":{"200":{"description":"Service is healthy","content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Response Health Healthz Get"},"example":{"status":"ok"}}}}}}},"/events":{"get":{"tags":["events"],"summary":"List Events","description":"Retrieve AIS maritime events with advanced filtering, sorting, and cursor-based pagination. Results are cached for 5 minutes to improve performance. Cache is automatically invalidated when new events are added.","operationId":"list_events_events_get","parameters":[{"name":"source","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Filter events by data source (e.g., 'aisstream')","examples":{"aisstream":{"value":"aisstream","description":"AIS stream data source"}},"title":"Source"},"description":"Filter events by data source (e.g., 'aisstream')"},{"name":"event_type","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Filter events by type (e.g., 'PositionReport', 'VesselInfo')","examples":{"position":{"value":"PositionReport","description":"Vessel position report"}},"title":"Event Type"},"description":"Filter events by type (e.g., 'PositionReport', 'VesselInfo')"},{"name":"start_time","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"description":"Filter events received after this timestamp (ISO 8601 format)","examples":{"sample":{"value":"2024-01-01T00:00:00Z","description":"Start of 2024"}},"title":"Start Time"},"description":"Filter events received after this timestamp (ISO 8601 format)"},{"name":"end_time","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"description":"Filter events received before this timestamp (ISO 8601 format)","examples":{"sample":{"value":"2024-01-01T23:59:59Z","description":"End of 2024"}},"title":"End Time"},"description":"Filter events received before this timestamp (ISO 8601 format)"},{"name":"cursor","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"description":"Pagination cursor from previous response for navigating to next page","examples":{"sample":{"value":"MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA=","description":"Sample cursor for pagination"}},"title":"Cursor"},"description":"Pagination cursor from previous response for navigating to next page"},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","maximum":500,"minimum":1,"description":"Maximum number of events to return per page (1-500)","examples":{"default":{"value":50,"description":"Default page size"}},"default":50,"title":"Limit"},"description":"Maximum number of events to return per page (1-500)"},{"name":"sort_order","in":"query","required":false,"schema":{"type":"string","pattern":"^(asc|desc)$","description":"Sort order by received timestamp ('asc' for oldest first, 'desc' for newest first)","examples":{"newest":{"value":"desc","description":"Newest events first"},"oldest":{"value":"asc","description":"Oldest events first"}},"default":"desc","title":"Sort Order"},"description":"Sort order by received timestamp ('asc' for oldest first, 'desc' for newest first)"}],"responses":{"200":{"description":"List of events with pagination metadata","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PaginatedEventsResponse"},"example":{"events":[{"id":"550e8400-e29b-41d4-a716-446655440000","source":"aisstream","event_type":"PositionReport","payload":{"MessageType":"PositionReport","MetaData":{"MMSI":123456789},"Message":{"Latitude":37.9,"Longitude":23.7}},"received_at":"2024-01-01T12:00:00Z","dedup_key":"mmsi:123456789:PositionReport:2024-01-01 12:00:00"}],"next_cursor":"MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA=","has_more":true,"total_count":1500}}}},"400":{"description":"Invalid cursor format","content":{"application/json":{"example":{"detail":"Invalid cursor format"}}}},"429":{"description":"Rate limit exceeded","content":{"application/json":{"example":{"detail":"Rate limit exceeded","error":"Too many requests. Limit: 100/minute","retry_after":"60"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}}},"components":{"schemas":{"EventOut":{"properties":{"id":{"type":"string","format":"uuid","title":"Id","description":"Unique identifier for the event","example":"550e8400-e29b-41d4-a716-446655440000"},"source":{"type":"string","title":"Source","description":"Data source identifier (e.g., 'aisstream')","example":"aisstream"},"event_type":{"type":"string","title":"Event Type","description":"Type of event (e.g., 'PositionReport', 'VesselInfo')","example":"PositionReport"},"payload":{"additionalProperties":true,"type":"object","title":"Payload","description":"Raw event data from source containing AIS message details","example":{"Message":{"COG":45.3,"Latitude":37.9,"Longitude":23.7,"SOG":15.2},"MessageType":"PositionReport","MetaData":{"MMSI":123456789,"time_utc":"2024-01-01 12:00:00"}}},"received_at":{"type":"string","format":"date-time","title":"Received At","description":"Timestamp when event was received by the ingestion service","example":"2024-01-01T12:00:00Z"},"dedup_key":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Dedup Key","description":"Deduplication key for idempotent processing (MMSI:event_type:timestamp)","example":"mmsi:123456789:PositionReport:2024-01-01 12:00:00"}},"type":"object","required":["id","source","event_type","payload","received_at"],"title":"EventOut","description":"Individual event record with full details."},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"PaginatedEventsResponse":{"properties":{"events":{"items":{"$ref":"#/components/schemas/EventOut"},"type":"array","maxItems":500,"minItems":0,"title":"Events","description":"List of events matching the query parameters"},"next_cursor":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Next Cursor","description":"Base64 encoded cursor for fetching the next page of results","example":"MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA="},"has_more":{"type":"boolean","title":"Has More","description":"Indicates whether additional pages of results are available","example":true},"total_count":{"type":"integer","minimum":0.0,"title":"Total Count","description":"Total number of events matching the query across all pages","example":1500}},"type":"object","required":["events","has_more","total_count"],"title":"PaginatedEventsResponse","description":"Paginated response containing events and navigation metadata."},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"}}},"tags":[{"name":"ops","description":"Operational endpoints for monitoring and health checks"},{"name":"events","description":"Event querying and filtering endpoints with pagination support"}]}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "feedstream",
+    "description": "Real-time AIS maritime data ingestion and query service with advanced filtering, pagination, and caching",
+    "contact": {
+      "name": "feedstream API Support",
+      "url": "https://github.com/Archangel-77/feedstream",
+      "email": "support@example.com"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "0.3.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Health Check",
+        "description": "Returns the current health status of the API service.",
+        "operationId": "health_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Healthz Get"
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "List Events",
+        "description": "Retrieve AIS maritime events with advanced filtering, sorting, and cursor-based pagination. Results are cached for 5 minutes to improve performance. Cache is automatically invalidated when new events are added.",
+        "operationId": "list_events_events_get",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter events by data source (e.g., 'aisstream')",
+              "examples": {
+                "aisstream": {
+                  "value": "aisstream",
+                  "description": "AIS stream data source"
+                }
+              },
+              "title": "Source"
+            },
+            "description": "Filter events by data source (e.g., 'aisstream')"
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter events by type (e.g., 'PositionReport', 'VesselInfo')",
+              "examples": {
+                "position": {
+                  "value": "PositionReport",
+                  "description": "Vessel position report"
+                }
+              },
+              "title": "Event Type"
+            },
+            "description": "Filter events by type (e.g., 'PositionReport', 'VesselInfo')"
+          },
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter events received after this timestamp (ISO 8601 format)",
+              "examples": {
+                "sample": {
+                  "value": "2024-01-01T00:00:00Z",
+                  "description": "Start of 2024"
+                }
+              },
+              "title": "Start Time"
+            },
+            "description": "Filter events received after this timestamp (ISO 8601 format)"
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter events received before this timestamp (ISO 8601 format)",
+              "examples": {
+                "sample": {
+                  "value": "2024-01-01T23:59:59Z",
+                  "description": "End of 2024"
+                }
+              },
+              "title": "End Time"
+            },
+            "description": "Filter events received before this timestamp (ISO 8601 format)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Pagination cursor from previous response for navigating to next page",
+              "examples": {
+                "sample": {
+                  "value": "MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA=",
+                  "description": "Sample cursor for pagination"
+                }
+              },
+              "title": "Cursor"
+            },
+            "description": "Pagination cursor from previous response for navigating to next page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Maximum number of events to return per page (1-500)",
+              "examples": {
+                "default": {
+                  "value": 50,
+                  "description": "Default page size"
+                }
+              },
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Maximum number of events to return per page (1-500)"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order by received timestamp ('asc' for oldest first, 'desc' for newest first)",
+              "examples": {
+                "newest": {
+                  "value": "desc",
+                  "description": "Newest events first"
+                },
+                "oldest": {
+                  "value": "asc",
+                  "description": "Oldest events first"
+                }
+              },
+              "default": "desc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order by received timestamp ('asc' for oldest first, 'desc' for newest first)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of events with pagination metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedEventsResponse"
+                },
+                "example": {
+                  "events": [
+                    {
+                      "id": "550e8400-e29b-41d4-a716-446655440000",
+                      "source": "aisstream",
+                      "event_type": "PositionReport",
+                      "payload": {
+                        "MessageType": "PositionReport",
+                        "MetaData": {
+                          "MMSI": 123456789
+                        },
+                        "Message": {
+                          "Latitude": 37.9,
+                          "Longitude": 23.7
+                        }
+                      },
+                      "received_at": "2024-01-01T12:00:00Z",
+                      "dedup_key": "mmsi:123456789:PositionReport:2024-01-01 12:00:00"
+                    }
+                  ],
+                  "next_cursor": "MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA=",
+                  "has_more": true,
+                  "total_count": 1500
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor format",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Invalid cursor format"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Rate limit exceeded",
+                  "error": "Too many requests. Limit: 100/minute",
+                  "retry_after": "60"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EventOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique identifier for the event",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Data source identifier (e.g., 'aisstream')",
+            "example": "aisstream"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type",
+            "description": "Type of event (e.g., 'PositionReport', 'VesselInfo')",
+            "example": "PositionReport"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload",
+            "description": "Raw event data from source containing AIS message details",
+            "example": {
+              "Message": {
+                "COG": 45.3,
+                "Latitude": 37.9,
+                "Longitude": 23.7,
+                "SOG": 15.2
+              },
+              "MessageType": "PositionReport",
+              "MetaData": {
+                "MMSI": 123456789,
+                "time_utc": "2024-01-01 12:00:00"
+              }
+            }
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At",
+            "description": "Timestamp when event was received by the ingestion service",
+            "example": "2024-01-01T12:00:00Z"
+          },
+          "dedup_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dedup Key",
+            "description": "Deduplication key for idempotent processing (MMSI:event_type:timestamp)",
+            "example": "mmsi:123456789:PositionReport:2024-01-01 12:00:00"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "event_type",
+          "payload",
+          "received_at"
+        ],
+        "title": "EventOut",
+        "description": "Individual event record with full details."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PaginatedEventsResponse": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 0,
+            "title": "Events",
+            "description": "List of events matching the query parameters"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Base64 encoded cursor for fetching the next page of results",
+            "example": "MjAyNC0wMS0wMVQxMjowMDowMDo1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDA="
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Indicates whether additional pages of results are available",
+            "example": true
+          },
+          "total_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Count",
+            "description": "Total number of events matching the query across all pages",
+            "example": 1500
+          }
+        },
+        "type": "object",
+        "required": [
+          "events",
+          "has_more",
+          "total_count"
+        ],
+        "title": "PaginatedEventsResponse",
+        "description": "Paginated response containing events and navigation metadata."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "ops",
+      "description": "Operational endpoints for monitoring and health checks"
+    },
+    {
+      "name": "events",
+      "description": "Event querying and filtering endpoints with pagination support"
+    }
+  ]
+}

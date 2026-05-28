@@ -73,12 +73,12 @@
 
 **Goal:** The HTTP layer becomes real. Where performance and API design get shown off.
 
-- [ ] Expand the query API: filters (by source, event_type, time range), cursor‑based pagination (not offset — offset is a junior smell), sort order.
-- [ ] Add Pydantic response schemas with proper field descriptions (these show up in Swagger, which hiring managers will look at).
-- [ ] Add rate limiting using `slowapi` or a Redis‑backed limiter. Different limits per endpoint.
-- [ ] Add Redis caching on the hot query paths. Cache invalidation on new writes via a simple pub/sub or TTL. Document your caching strategy in the README — the reasoning matters more than the implementation.
-- [ ] Add OpenAPI tags, response examples, and a proper API description. Generate a screenshot of Swagger for the README.
-- [ ] Tests for every endpoint, plus a test that asserts the cache is actually used (mock Redis, check it's hit).
+- [+] Expand the query API: filters (by source, event_type, time range), cursor‑based pagination (not offset — offset is a junior smell), sort order.
+- [+] Add Pydantic response schemas with proper field descriptions (these show up in Swagger, which hiring managers will look at).
+- [+] Add rate limiting using `slowapi` or a Redis‑backed limiter. Different limits per endpoint.
+- [+] Add Redis caching on the hot query paths. Cache invalidation on new writes via a simple pub/sub or TTL. Document your caching strategy in the README — the reasoning matters more than the implementation.
+- [+] Add OpenAPI tags, response examples, and a proper API description. Generate a screenshot of Swagger for the README.
+- [+] Tests for every endpoint, plus a test that asserts the cache is actually used (mock Redis, check it's hit).
 
 **Target commits (~13):** add filtering, add cursor pagination, add pagination tests, add response schemas, add rate limiter, add rate limit tests, add cache layer, add cache invalidation, add cache tests, polish OpenAPI metadata, add Swagger screenshot, update README.
 
