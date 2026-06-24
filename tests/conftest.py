@@ -39,6 +39,9 @@ class MockRedisClient:
         param_str = ":".join(f"{k}={v}" for k, v in sorted_params if v is not None)
         return f"{prefix}:{param_str}" if param_str else prefix
 
+    def get_cache_stats(self):
+        return {"hits": 0, "misses": 0}
+
 
 @pytest_asyncio.fixture
 async def mock_redis_client():

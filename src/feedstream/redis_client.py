@@ -6,6 +6,7 @@ import redis.asyncio as redis
 from redis.asyncio import Redis
 
 from feedstream.settings import Settings
+from feedstream.observability.metrics import METRIC_CACHE_HITS_TOTAL, METRIC_CACHE_MISSES_TOTAL
 
 
 class RedisClient:
@@ -14,6 +15,8 @@ class RedisClient:
     def __init__(self, settings: Settings):
         self.settings = settings
         self._client: Optional[Redis] = None
+        self._hits = 0
+        self._misses = 0
     
     async def connect(self) -> Redis:
         """Initialize Redis connection."""
@@ -37,7 +40,11 @@ class RedisClient:
         try:
             value = await client.get(key)
             if value is None:
+                self._misses += 1
+                METRIC_CACHE_MISSES_TOTAL.inc()
                 return None
+            self._hits += 1
+            METRIC_CACHE_HITS_TOTAL.inc()
             return json.loads(value)
         except (json.JSONDecodeError, redis.RedisError):
             return None
@@ -76,6 +83,12 @@ class RedisClient:
         sorted_params = sorted(kwargs.items())
         param_str = ":".join(f"{k}={v}" for k, v in sorted_params if v is not None)
         return f"{prefix}:{param_str}" if param_str else prefix
+
+    def get_cache_stats(self) -> dict[str, int]:
+        return {
+            "hits": self._hits,
+            "misses": self._misses,
+        }
 
 
 # Global Redis client instance

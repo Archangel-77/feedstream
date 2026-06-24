@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     ais_api_key: str = ""
     app_env: str = "development"
     log_level: str = "INFO"
+    debug_stats_token: str = "local-dev-token"
+    enable_metrics: bool = True
 
 
 settings = Settings()

@@ -27,7 +27,7 @@ feedstream connects to the global AIS (Automatic Identification System) stream, 
 - [x] **Week 1** — Vertical slice: AIS source → database → HTTP response
 - [x] **Week 2** — Worker hardening: dedup, backoff, circuit breaker, structured logging
 - [x] **Week 3** — Query API: filtering, cursor pagination, Redis caching, rate limiting
-- [ ] **Week 4** — Observability: Prometheus metrics, Grafana dashboard, request tracing
+- [x] **Week 4** — Observability: Prometheus metrics, Grafana dashboard, request tracing
 - [ ] **Week 5** — Deployment: live on Fly.io, retention policy, status badge
 - [ ] **Week 6** — Polish: architecture docs, ADRs, blog post
 
@@ -76,6 +76,13 @@ pytest
 # Start the API server
 uvicorn feedstream.main:app --reload
 ```
+
+## Observability
+
+- `GET /metrics` exposes Prometheus metrics.
+- `GET /debug/stats` is auth-protected with `X-Debug-Token`.
+- Every HTTP response includes `X-Request-ID` for request tracing.
+- Grafana is available at `http://localhost:3000` and Prometheus at `http://localhost:9090` when `docker compose up` is running.
 
 ## Data source
 

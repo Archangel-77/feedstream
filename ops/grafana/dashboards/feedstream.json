@@ -1,0 +1,50 @@
+{
+  "id": null,
+  "uid": "feedstream-week4",
+  "title": "Feedstream Observability",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Events Ingested / sec",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(rate(feedstream_events_ingested_total{status=\"inserted\"}[5m])) by (source)", "legendFormat": "{{source}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ingestion p95 Latency",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(feedstream_ingestion_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Query p95 Latency (/events)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(feedstream_query_latency_seconds_bucket{endpoint=\"/events\"}[5m])) by (le))", "legendFormat": "p95"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Worker State",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "feedstream_worker_state", "legendFormat": "{{state}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache Hit Ratio",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [{"expr": "rate(feedstream_cache_hits_total[5m]) / (rate(feedstream_cache_hits_total[5m]) + rate(feedstream_cache_misses_total[5m]))", "legendFormat": "hit_ratio"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Pool Usage",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {"expr": "feedstream_db_pool_checked_out", "legendFormat": "checked_out"},
+        {"expr": "feedstream_db_pool_size", "legendFormat": "size"},
+        {"expr": "feedstream_db_pool_overflow", "legendFormat": "overflow"}
+      ]
+    }
+  ]
+}
