@@ -1,0 +1,41 @@
+app = "feedstream"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  ENABLE_DOCS = "false"
+  ENABLE_METRICS = "true"
+  LOG_LEVEL = "INFO"
+  RETENTION_DAYS = "30"
+  RETENTION_BATCH_SIZE = "5000"
+  RETENTION_INTERVAL_MINUTES = "1440"
+  PUBLIC_BASE_URL = "https://feedstream.fly.dev"
+  GITHUB_REPO_URL = "https://github.com/Archangel-77/feedstream"
+
+[[services]]
+  processes = ["app"]
+  protocol = "tcp"
+  internal_port = 8080
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "10s"
+    method = "get"
+    path = "/healthz"
+    protocol = "http"
+
+[processes]
+  app = "uvicorn feedstream.main:app --host 0.0.0.0 --port 8080"
+  retention = "python -m feedstream.retention"

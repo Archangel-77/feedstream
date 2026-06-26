@@ -107,17 +107,17 @@
 
 **Goal:** It runs on the public internet, forever, for free.
 
-- [ ] Deploy to Fly.io or Railway (both have generous free tiers). You need the app, Postgres, and Redis. Fly has free Postgres; Railway's is time‑limited — pick accordingly.
-- [ ] Set up proper secrets management (no `.env` files in prod, use the platform's secret store).
-- [ ] Configure a staging/prod split or at least proper environment separation.
-- [ ] Add a retention policy: events older than N days get deleted (or downsampled into hourly aggregates in a separate table — more impressive if you have time). Implement this as a scheduled job.
-- [ ] Add automated database backups or at least document the backup strategy in an ADR.
-- [ ] Add a public status badge to the README: uptime, build status, latest deploy.
-- [ ] Add a simple landing page at `/` that explains what the service is and links to `/docs`, `/metrics` (auth‑protected), and the GitHub repo.
+- [x] Deploy to Fly.io or Railway (both have generous free tiers). You need the app, Postgres, and Redis. Fly has free Postgres; Railway's is time‑limited — pick accordingly.
+- [x] Set up proper secrets management (no `.env` files in prod, use the platform's secret store).
+- [x] Configure a staging/prod split or at least proper environment separation.
+- [x] Add a retention policy: events older than N days get deleted (or downsampled into hourly aggregates in a separate table — more impressive if you have time). Implement this as a scheduled job.
+- [x] Add automated database backups or at least document the backup strategy in an ADR.
+- [x] Add a public status badge to the README: uptime, build status, latest deploy.
+- [x] Add a simple landing page at `/` that explains what the service is and links to `/docs`, `/metrics` (auth‑protected), and the GitHub repo.
 
 **Target commits (~10):** add fly.io config, add production settings, add secret management, add retention job, add retention tests, add backup ADR, add landing page, configure prod logging, add deploy workflow to CI, README update with live URL.
 
-**End‑of‑week check:** Your README has a live URL at the top. Anyone can click it, see it running, hit `/docs`, and call the API. This single fact puts you in the top ~10% of self‑taught developer portfolios.
+**End‑of‑week check:** ✅ Your README has a live URL at the top. Anyone can click it, see it running, hit `/docs`, and call the API. This single fact puts you in the top ~10% of self‑taught developer portfolios.
 
 ---
 

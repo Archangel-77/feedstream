@@ -2,6 +2,10 @@
 
 ![Status](https://img.shields.io/badge/status-in%20development-yellow)
 ![CI](https://github.com/Archangel-77/feedstream/actions/workflows/ci.yml/badge.svg)
+![Deploy](https://github.com/Archangel-77/feedstream/actions/workflows/deploy.yml/badge.svg)
+![Uptime](https://img.shields.io/website?url=https%3A%2F%2Ffeedstream.fly.dev%2Fhealthz&label=uptime)
+
+Live URL: https://feedstream.fly.dev
 
 A real-time data ingestion and query service built on live AIS maritime ship-tracking data.
 
@@ -28,7 +32,7 @@ feedstream connects to the global AIS (Automatic Identification System) stream, 
 - [x] **Week 2** — Worker hardening: dedup, backoff, circuit breaker, structured logging
 - [x] **Week 3** — Query API: filtering, cursor pagination, Redis caching, rate limiting
 - [x] **Week 4** — Observability: Prometheus metrics, Grafana dashboard, request tracing
-- [ ] **Week 5** — Deployment: live on Fly.io, retention policy, status badge
+- [x] **Week 5** — Deployment: live on Fly.io, retention policy, status badge
 - [ ] **Week 6** — Polish: architecture docs, ADRs, blog post
 
 ## API Documentation
@@ -75,6 +79,9 @@ pytest
 
 # Start the API server
 uvicorn feedstream.main:app --reload
+
+# Start retention worker (separate process)
+python -m feedstream.retention
 ```
 
 ## Observability
@@ -83,6 +90,38 @@ uvicorn feedstream.main:app --reload
 - `GET /debug/stats` is auth-protected with `X-Debug-Token`.
 - Every HTTP response includes `X-Request-ID` for request tracing.
 - Grafana is available at `http://localhost:3000` and Prometheus at `http://localhost:9090` when `docker compose up` is running.
+
+## Deployment
+
+- Target platform: Fly.io.
+- App config: `fly.toml`.
+- Deploy workflow: `.github/workflows/deploy.yml` (push to `main`).
+- Runtime secrets are set in Fly secret store, not committed `.env` files.
+
+### Required production secrets
+
+- `DATABASE_URL`
+- `REDIS_URL`
+- `AIS_API_KEY`
+- `DEBUG_STATS_TOKEN`
+
+Set them with:
+
+```bash
+fly secrets set DATABASE_URL=... REDIS_URL=... AIS_API_KEY=... DEBUG_STATS_TOKEN=...
+```
+
+### Environment separation
+
+- Local dev: `.env` from `.env.example`
+- Staging template: `.env.staging.example`
+- Production template: `.env.production.example`
+
+## Data retention and backups
+
+- Retention job runs as a dedicated process (`python -m feedstream.retention`) and deletes events older than `RETENTION_DAYS`.
+- Default retention is 30 days (`RETENTION_DAYS=30`).
+- Backup strategy is documented in ADR 0002 at `docs/adr/0002-backup-strategy-for-production-postgres.md`.
 
 ## Data source
 

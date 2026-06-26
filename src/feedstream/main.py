@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi.errors import RateLimitExceeded
@@ -30,8 +30,8 @@ app = FastAPI(
     title="feedstream",
     description="Real-time AIS maritime data ingestion and query service with advanced filtering, pagination, and caching",
     version="0.4.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.enable_docs else None,
+    redoc_url="/redoc" if settings.enable_docs else None,
     openapi_url="/openapi.json",
     openapi_tags=[
         {
@@ -76,6 +76,48 @@ async def tracing_and_metrics_middleware(request: Request, call_next):
 @limiter.limit(get_rate_limit("ops"))
 async def health(request: Request) -> dict:
     return {"status": "ok"}
+
+
+@app.get("/", tags=["ops"], response_class=HTMLResponse)
+async def landing() -> str:
+    metrics_link = (
+        '<li><a href="/metrics"><code>/metrics</code> - Prometheus metrics</a></li>'
+        if settings.enable_metrics
+        else ""
+    )
+    docs_link = (
+        '<li><a href="/docs"><code>/docs</code> - Interactive API docs</a></li>'
+        if settings.enable_docs
+        else ""
+    )
+    return f"""
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>feedstream</title>
+    <style>
+      body {{ font-family: -apple-system, Segoe UI, sans-serif; margin: 2rem auto; max-width: 760px; padding: 0 1rem; line-height: 1.5; color: #1f2937; }}
+      h1 {{ margin-bottom: 0.25rem; }}
+      .muted {{ color: #4b5563; }}
+      code {{ background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 4px; }}
+      a {{ color: #0f766e; text-decoration: none; }}
+      a:hover {{ text-decoration: underline; }}
+    </style>
+  </head>
+  <body>
+    <h1>feedstream</h1>
+    <p class="muted">Real-time AIS ingestion and query API.</p>
+    <ul>
+      <li><a href="/healthz"><code>/healthz</code> - Health check</a></li>
+      {docs_link}
+      {metrics_link}
+      <li><a href="{settings.github_repo_url}">GitHub repository</a></li>
+    </ul>
+  </body>
+</html>
+"""
 
 
 @app.get("/metrics", tags=["ops"])

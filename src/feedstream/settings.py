@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     debug_stats_token: str = "local-dev-token"
     enable_metrics: bool = True
+    enable_docs: bool = True
+    retention_days: int = 30
+    retention_batch_size: int = 5000
+    retention_interval_minutes: int = 1440
+    public_base_url: str = "http://localhost:8000"
+    github_repo_url: str = "https://github.com/Archangel-77/feedstream"
 
 
 settings = Settings()
