@@ -1,3 +1,4 @@
+```markdown
 # feedstream
 
 Real-time AIS maritime data pipeline: ingest, store, query, cache, and observe.
@@ -6,14 +7,20 @@ Real-time AIS maritime data pipeline: ingest, store, query, cache, and observe.
 ![Deploy](https://github.com/Archangel-77/feedstream/actions/workflows/deploy.yml/badge.svg)
 ![Uptime](https://img.shields.io/website?url=https%3A%2F%2Ffeedstream.fly.dev%2Fhealthz&label=uptime)
 
-Live demo: https://feedstream.fly.dev  
-API docs: https://feedstream.fly.dev/docs
+Live demo: [https://feedstream.fly.dev](https://feedstream.fly.dev)  
+API docs: [https://feedstream.fly.dev/docs](https://feedstream.fly.dev/docs)
 
 ## Why this exists
 
 `feedstream` is a production-style backend portfolio project built to demonstrate real-world engineering concerns: idempotent ingestion, retry and circuit breaking, cursor pagination, caching, observability, retention, and deployment.
 
 The system ingests live AIS ship-tracking events from [aisstream.io](https://aisstream.io), writes them to Postgres, and exposes query endpoints through FastAPI.
+
+## Resume-ready highlights
+
+- Built a production-style real-time ingestion service for AIS maritime events with idempotent writes (`dedup_key` + `ON CONFLICT`) to prevent duplicates during reconnect/replay scenarios.
+- Designed and shipped a resilient data pipeline with retry backoff, circuit breaker, graceful shutdown, cursor-based pagination, and Redis caching for hot query paths.
+- Implemented observability and operations with Prometheus metrics, Grafana dashboards, tracing IDs, CI/CD workflows, retention policy, and live deployment.
 
 ## Architecture
 
@@ -137,3 +144,8 @@ Retention and backups:
 - OpenAPI snapshot: `openapi.json`
 - Blog draft: `docs/blog/circuit-breaker-dedup-lessons.md`
 - Week 6 rollout checklist: `docs/career/week6-rollout-checklist.md`
+
+## Recruiter summary
+
+`feedstream` is a live, production-style backend project that demonstrates reliability under failure, observable operations, and clean API design with real-time maritime data.
+```
