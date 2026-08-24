@@ -17,6 +17,11 @@ def get_request_id() -> str | None:
     return request_id_ctx.get()
 
 
+def get_correlation_id() -> str | None:
+    """Return the active correlation ID (request ID, or ingestion trace ID)."""
+    return request_id_ctx.get() or ingestion_trace_id_ctx.get()
+
+
 def set_ingestion_trace_id(trace_id: str) -> None:
     ingestion_trace_id_ctx.set(trace_id)
 
