@@ -4,21 +4,24 @@ import logging
 import signal
 import time
 import uuid
+from typing import cast
 
 import tenacity
 import websockets
-from pythonjsonlogger import jsonlogger
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from websockets.exceptions import ConnectionClosed
 
 from feedstream.database import AsyncSessionLocal
+from feedstream.logging_config import configure_logging
 from feedstream.models import Event
 from feedstream.observability.metrics import (
     METRIC_EVENTS_INGESTED_TOTAL,
     observe_ingestion_latency,
     set_worker_state,
 )
-from feedstream.observability.tracing import get_ingestion_trace_id, new_trace_id, set_ingestion_trace_id
+from feedstream.observability.tracing import new_trace_id, set_ingestion_trace_id
 from feedstream.redis_client import get_redis_client
 from feedstream.settings import settings
 
@@ -51,7 +54,7 @@ class CircuitBreaker:
         except Exception as exc:
             self._failure()
             if self.state == "OPEN":
-                raise Exception("Circuit breaker is OPEN")
+                raise Exception("Circuit breaker is OPEN") from None
             raise exc
 
     def _success(self):
@@ -65,9 +68,12 @@ class CircuitBreaker:
             self.state = "OPEN"
 
     def check_state(self):
-        if self.state == "OPEN" and self.last_failure_time:
-            if time.time() - self.last_failure_time > self.timeout:
-                self.state = "HALF_OPEN"
+        if (
+            self.state == "OPEN"
+            and self.last_failure_time
+            and time.time() - self.last_failure_time > self.timeout
+        ):
+            self.state = "HALF_OPEN"
         return self.state
 
 
@@ -91,16 +97,18 @@ async def run() -> None:
     logger.info("Worker stopped cleanly")
 
 
-async def ingest_loop() -> None:
-    @tenacity.retry(
-        stop=tenacity.stop_after_attempt(10),
-        wait=tenacity.wait_random_exponential(multiplier=1, max=60),
-        retry=tenacity.retry_if_exception_type(websockets.exceptions.ConnectionClosed),
-        reraise=True,
-    )
-    async def _connect_and_consume_with_retry():
-        await _connect_and_consume()
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(10),
+    wait=tenacity.wait_random_exponential(multiplier=1, max=60),
+    retry=tenacity.retry_if_exception_type(ConnectionClosed),
+    reraise=True,
+)
+async def _connect_and_consume_with_retry() -> None:
+    """Connect and consume, retrying on ConnectionClosed with backoff."""
+    await _connect_and_consume()
 
+
+async def ingest_loop() -> None:
     while not _shutdown.is_set():
         try:
             set_worker_state("retrying")
@@ -179,30 +187,35 @@ def parse_ais_message(raw: str) -> dict | None:
 
 
 async def write_event(session: AsyncSession, event_dict: dict) -> str:
+    if not event_dict.get("dedup_key"):
+        # Events without MMSI or time_utc cannot produce a dedup key. The
+        # column is NOT NULL, so skip them instead of crashing the loop.
+        logger.warning(
+            "Skipping event with missing dedup key (no MMSI or time_utc)",
+            extra={"event_type": event_dict.get("event_type")},
+        )
+        return "rejected"
+
     stmt = insert(Event).values(**event_dict).on_conflict_do_nothing(index_elements=["dedup_key"])
     result = await session.execute(stmt)
     await session.commit()
 
-    trace_id = get_ingestion_trace_id()
-    if result.rowcount > 0:
+    if cast(CursorResult, result).rowcount > 0:
         redis_client_instance = await get_redis_client()
         await redis_client_instance.delete_pattern("events:*")
         logger.debug(
             "Ingested event and invalidated cache",
-            extra={"event_type": event_dict.get("event_type"), "ingestion_trace_id": trace_id},
+            extra={"event_type": event_dict.get("event_type")},
         )
         return "inserted"
 
     logger.debug(
         "Duplicate event skipped",
-        extra={"event_type": event_dict.get("event_type"), "ingestion_trace_id": trace_id},
+        extra={"event_type": event_dict.get("event_type")},
     )
     return "duplicate"
 
 
 if __name__ == "__main__":
-    handler = logging.StreamHandler()
-    handler.setFormatter(jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
-    logger.setLevel(settings.log_level)
-    logger.addHandler(handler)
+    configure_logging(settings.log_level)
     asyncio.run(run())
