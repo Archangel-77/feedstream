@@ -1,17 +1,19 @@
 import base64
+import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from feedstream.database import get_pool_stats, get_session
+from feedstream.logging_config import configure_logging
 from feedstream.models import Event
 from feedstream.observability.metrics import (
     METRIC_HTTP_REQUESTS_TOTAL,
@@ -23,16 +25,32 @@ from feedstream.observability.metrics import (
 from feedstream.observability.tracing import new_trace_id, set_request_id
 from feedstream.rate_limiter import get_rate_limit, limiter, rate_limit_exceeded_handler
 from feedstream.redis_client import get_redis_client
-from feedstream.schemas import PaginatedEventsResponse
+from feedstream.schemas import EventOut, PaginatedEventsResponse
 from feedstream.settings import settings
+
+logger = logging.getLogger(__name__)
+
+configure_logging(settings.log_level)
+
+
+def build_openapi_config() -> dict:
+    """Return the docs-related FastAPI options, honoring ENABLE_DOCS."""
+    return {
+        "docs_url": "/docs" if settings.enable_docs else None,
+        "redoc_url": "/redoc" if settings.enable_docs else None,
+        "openapi_url": "/openapi.json" if settings.enable_docs else None,
+    }
+
 
 app = FastAPI(
     title="feedstream",
-    description="Real-time AIS maritime data ingestion and query service with advanced filtering, pagination, and caching",
+    description=(
+        "Real-time AIS maritime data ingestion and query service "
+        "with advanced filtering, pagination, and caching"
+    ),
     version="0.4.0",
-    docs_url="/docs" if settings.enable_docs else None,
-    redoc_url="/redoc" if settings.enable_docs else None,
-    openapi_url="/openapi.json",
+    **build_openapi_config(),
+    servers=[{"url": settings.public_base_url}],
     openapi_tags=[
         {
             "name": "ops",
@@ -47,7 +65,7 @@ app = FastAPI(
 
 app.add_middleware(SlowAPIMiddleware)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -67,6 +85,15 @@ async def tracing_and_metrics_middleware(request: Request, call_next):
         path=request.url.path,
         status_code=str(response.status_code),
     ).inc()
+    logger.info(
+        "request_completed",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": str(response.status_code),
+            "response_time_ms": f"{elapsed * 1000:.2f}",
+        },
+    )
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Response-Time"] = f"{elapsed:.6f}"
     return response
@@ -98,7 +125,14 @@ async def landing() -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>feedstream</title>
     <style>
-      body {{ font-family: -apple-system, Segoe UI, sans-serif; margin: 2rem auto; max-width: 760px; padding: 0 1rem; line-height: 1.5; color: #1f2937; }}
+      body {{
+        font-family: -apple-system, Segoe UI, sans-serif;
+        margin: 2rem auto;
+        max-width: 760px;
+        padding: 0 1rem;
+        line-height: 1.5;
+        color: #1f2937;
+      }}
       h1 {{ margin-bottom: 0.25rem; }}
       .muted {{ color: #4b5563; }}
       code {{ background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 4px; }}
@@ -150,13 +184,13 @@ async def debug_stats(x_debug_token: str = Header(default="")) -> dict:
 async def list_events(
     request: Request,
     session: SessionDep,
-    source: str | None = Query(None),
-    event_type: str | None = Query(None),
-    start_time: datetime | None = Query(None),
-    end_time: datetime | None = Query(None),
-    cursor: str | None = Query(None),
-    limit: int = Query(default=50, ge=1, le=500),
-    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    source: Annotated[str | None, Query()] = None,
+    event_type: Annotated[str | None, Query()] = None,
+    start_time: Annotated[datetime | None, Query()] = None,
+    end_time: Annotated[datetime | None, Query()] = None,
+    cursor: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    sort_order: Annotated[str, Query(pattern="^(asc|desc)$")] = "desc",
 ) -> PaginatedEventsResponse:
     started_at = time.perf_counter()
 
@@ -194,7 +228,7 @@ async def list_events(
 
     count_query = select(func.count()).select_from(query.subquery())
     count_result = await session.execute(count_query)
-    total_count = count_result.scalar()
+    total_count = int(count_result.scalar() or 0)
 
     if cursor:
         try:
@@ -222,7 +256,7 @@ async def list_events(
                     )
                 )
         except (ValueError, IndexError):
-            raise HTTPException(status_code=400, detail="Invalid cursor format")
+            raise HTTPException(status_code=400, detail="Invalid cursor format") from None
 
     if sort_order == "desc":
         query = query.order_by(Event.received_at.desc(), Event.id.desc())
@@ -245,7 +279,7 @@ async def list_events(
         next_cursor = None
 
     response = PaginatedEventsResponse(
-        events=events,
+        events=cast(list[EventOut], events),
         next_cursor=next_cursor,
         has_more=has_more,
         total_count=total_count,
