@@ -15,6 +15,7 @@ dependencies = [
     "asyncpg>=0.29",
     "alembic>=1.13",
     "websockets>=12.0",
+    "tenacity>=8.2",
     "redis>=5.0",
     "slowapi>=0.1.9",
     "prometheus-client>=0.20",
