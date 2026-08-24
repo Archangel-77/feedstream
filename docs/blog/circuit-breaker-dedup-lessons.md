@@ -43,6 +43,31 @@ This creates a stable failure mode: less noise, lower pressure, clearer operatio
 
 Backoff handles transient failures. The circuit breaker handles sustained failures. Together they avoid retry storms and protect both the upstream and my own service.
 
+## The key code
+
+Idempotent writes, at the database level — replayed events are ignored, not duplicated:
+
+```python
+# src/feedstream/worker.py
+stmt = insert(Event).values(**event_dict).on_conflict_do_nothing(index_elements=["dedup_key"])
+```
+
+And the retry policy that keeps reconnects stable — exponential backoff with jitter, retrying only on dropped connections:
+
+```python
+# src/feedstream/worker.py
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(10),
+    wait=tenacity.wait_random_exponential(multiplier=1, max=60),
+    retry=tenacity.retry_if_exception_type(ConnectionClosed),
+    reraise=True,
+)
+async def _connect_and_consume_with_retry() -> None:
+    await _connect_and_consume()
+```
+
+Both are small pieces of code. The engineering was deciding *where* the guarantee should live — the database, not the application — so it still holds after a restart.
+
 ## What observability taught me
 
 Adding Prometheus and Grafana changed how I debugged problems:
@@ -77,6 +102,9 @@ The most useful lesson from this project: resilience is a product feature, not a
 
 If you want to explore the implementation details, see:
 
-- Repository: `feedstream`
-- Architecture: `ARCHITECTURE.md`
-- ADRs: `docs/adr/0003`, `0004`, `0005`
+- Repository: [Archangel-77/feedstream](https://github.com/Archangel-77/feedstream)
+- Architecture: [ARCHITECTURE.md](https://github.com/Archangel-77/feedstream/blob/main/ARCHITECTURE.md)
+- ADRs:
+  - [0003 — Idempotent ingestion with `dedup_key`](https://github.com/Archangel-77/feedstream/blob/main/docs/adr/0003-idempotent-ingestion-with-dedup-key.md)
+  - [0004 — Redis cache with TTL and write invalidation](https://github.com/Archangel-77/feedstream/blob/main/docs/adr/0004-redis-cache-with-ttl-and-write-invalidation.md)
+  - [0005 — Retry backoff and circuit breaker](https://github.com/Archangel-77/feedstream/blob/main/docs/adr/0005-retry-backoff-and-circuit-breaker-for-upstream-resilience.md)

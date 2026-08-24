@@ -289,7 +289,7 @@ Feedstream exposes a FastAPI-powered REST interface. All routes are tagged `ops`
 | `GET` | `/` | none | n/a | Landing page (HTML) |
 | `GET` | `/healthz` | none | 1000 / hour | Liveness probe |
 | `GET` | `/events` | none | 100 / minute | Query events with filters and cursor pagination |
-| `GET` | `/metrics` | none (prod: IP-restricted) | 1000 / hour | Prometheus scrape target |
+| `GET` | `/metrics` | none | 1000 / hour | Prometheus scrape target |
 | `GET` | `/debug/stats` | `X-Debug-Token` header | 1000 / hour | Worker state, cache stats, DB pool stats |
 | `GET` | `/docs` | n/a | 1000 / hour | Interactive Swagger UI (`ENABLE_DOCS=true`) |
 | `GET` | `/redoc` | n/a | 1000 / hour | ReDoc UI (`ENABLE_DOCS=true`) |
@@ -749,7 +749,7 @@ Production secrets are managed with `fly secrets set` and injected as environmen
 The following defaults are flipped in production (`APP_ENV=production`):
 
 * `ENABLE_DOCS=false` — `/docs`, `/redoc`, and `/openapi.json` return 404
-* `ENABLE_METRICS=true` — `/metrics` is reachable on the internal port and scrape target
+* `ENABLE_METRICS=true` — `/metrics` is exposed and scraped by the external Prometheus
 * `LOG_LEVEL=INFO`
 * `RETENTION_DAYS=30`, `RETENTION_INTERVAL_MINUTES=1440`
 
@@ -902,7 +902,13 @@ flowchart LR
 For the full component breakdown, reliability patterns, and trade-offs see:
 
 * [ARCHITECTURE.md](ARCHITECTURE.md)
-* [docs/adr/](docs/adr/)
+* Architecture Decision Records (ADRs):
+  * [0001 — Prometheus + Grafana observability](docs/adr/0001-prometheus-grafana-observability.md)
+  * [0002 — Backup strategy for production Postgres](docs/adr/0002-backup-strategy-for-production-postgres.md)
+  * [0003 — Idempotent ingestion with `dedup_key`](docs/adr/0003-idempotent-ingestion-with-dedup-key.md)
+  * [0004 — Redis cache with TTL and write invalidation](docs/adr/0004-redis-cache-with-ttl-and-write-invalidation.md)
+  * [0005 — Retry backoff and circuit breaker](docs/adr/0005-retry-backoff-and-circuit-breaker-for-upstream-resilience.md)
+* Blog write-up: [Building a Resilient Real-Time Ingestion Service](docs/blog/circuit-breaker-dedup-lessons.md)
 
 ---
 
