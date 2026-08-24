@@ -1,3 +1,4 @@
+import base64
 import json
 import uuid
 from datetime import datetime, timedelta
@@ -68,7 +69,7 @@ async def test_list_events_limit(client: AsyncClient, db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_fake_event_lands_in_db(db_session: AsyncSession):
+async def test_fake_event_lands_in_db(db_session: AsyncSession, patched_worker_redis):
     """Feed a fake AIS message through parse + write and assert it lands in the DB."""
     raw = json.dumps(
         {
@@ -159,7 +160,7 @@ async def test_events_filter_by_event_type(client: AsyncClient, db_session: Asyn
 async def test_events_filter_by_time_range(client: AsyncClient, db_session: AsyncSession):
     """Test filtering events by time range."""
     base_time = datetime.utcnow()
-    
+
     # Insert events at different times
     await db_session.execute(
         insert(Event).values(
@@ -220,7 +221,7 @@ async def test_cursor_pagination(client: AsyncClient, db_session: AsyncSession):
     assert len(data["events"]) == 2
     assert data["has_more"] is True
     assert data["next_cursor"] is not None
-    
+
     # Get second page using cursor
     cursor = data["next_cursor"]
     response = await client.get(f"/events?limit=2&cursor={cursor}")
@@ -228,7 +229,7 @@ async def test_cursor_pagination(client: AsyncClient, db_session: AsyncSession):
     data = response.json()
     assert len(data["events"]) == 2
     assert data["has_more"] is True
-    
+
     # Get final page
     cursor = data["next_cursor"]
     response = await client.get(f"/events?limit=2&cursor={cursor}")
@@ -243,7 +244,7 @@ async def test_cursor_pagination(client: AsyncClient, db_session: AsyncSession):
 async def test_sort_order(client: AsyncClient, db_session: AsyncSession):
     """Test sorting functionality."""
     base_time = datetime.utcnow()
-    
+
     # Insert events at different times
     for i in range(3):
         await db_session.execute(
@@ -264,10 +265,37 @@ async def test_sort_order(client: AsyncClient, db_session: AsyncSession):
     data = response.json()
     times_desc = [event["received_at"] for event in data["events"]]
     assert times_desc == sorted(times_desc, reverse=True)
-    
+
     # Test ascending order
     response = await client.get("/events?sort_order=asc")
     assert response.status_code == 200
     data = response.json()
     times_asc = [event["received_at"] for event in data["events"]]
     assert times_asc == sorted(times_asc)
+
+
+@pytest.mark.asyncio
+async def test_invalid_cursor_returns_400(client: AsyncClient):
+    """A malformed cursor (no colon / unparseable payload) must return 400."""
+    response = await client.get("/events?cursor=!!!")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid cursor format"
+
+    cursor = base64.b64encode(b"no-colon-here").decode()
+    response = await client.get(f"/events?cursor={cursor}")
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_cursor_with_invalid_uuid_returns_400(client: AsyncClient):
+    cursor = base64.b64encode(b"2024-01-01T00:00:00:not-a-uuid").decode()
+    response = await client.get(f"/events?cursor={cursor}")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid cursor format"
+
+
+@pytest.mark.asyncio
+async def test_limit_and_sort_order_validation(client: AsyncClient):
+    assert (await client.get("/events?limit=0")).status_code == 422
+    assert (await client.get("/events?limit=501")).status_code == 422
+    assert (await client.get("/events?sort_order=sideways")).status_code == 422

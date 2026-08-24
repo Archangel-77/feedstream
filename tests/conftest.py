@@ -8,44 +8,73 @@ from feedstream.main import app
 
 class MockRedisClient:
     """Mock Redis client for testing."""
-    
+
     def __init__(self):
         self._cache = {}
-    
+        self._ttls = {}
+        self._hits = 0
+        self._misses = 0
+
     async def connect(self):
         return self
-    
+
     async def disconnect(self):
         pass
-    
+
     async def get(self, key):
-        return self._cache.get(key)
-    
+        value = self._cache.get(key)
+        if value is None:
+            self._misses += 1
+            return None
+        self._hits += 1
+        return value
+
     async def set(self, key, value, ttl=300):
         self._cache[key] = value
+        self._ttls[key] = ttl
         return True
-    
+
     async def delete(self, key):
+        self._ttls.pop(key, None)
         return self._cache.pop(key, None) is not None
-    
+
     async def delete_pattern(self, pattern):
-        keys_to_delete = [k for k in self._cache.keys() if pattern.replace("*", "") in k]
+        substring = pattern.replace("*", "")
+        keys_to_delete = [k for k in self._cache if substring in k]
         for key in keys_to_delete:
             self._cache.pop(key, None)
+            self._ttls.pop(key, None)
         return len(keys_to_delete)
-    
+
     def generate_cache_key(self, prefix, **kwargs):
         sorted_params = sorted(kwargs.items())
         param_str = ":".join(f"{k}={v}" for k, v in sorted_params if v is not None)
         return f"{prefix}:{param_str}" if param_str else prefix
 
     def get_cache_stats(self):
-        return {"hits": 0, "misses": 0}
+        return {"hits": self._hits, "misses": self._misses}
 
 
 @pytest_asyncio.fixture
 async def mock_redis_client():
     return MockRedisClient()
+
+
+@pytest_asyncio.fixture
+async def patched_worker_redis(mock_redis_client, monkeypatch):
+    """Point the worker's cache client at the in-memory mock Redis.
+
+    Direct write tests call ``worker.write_event`` which performs cache
+    invalidation; routing it through the mock keeps tests hermetic and avoids
+    a real Redis connection tied to a short-lived event loop.
+    """
+
+    async def _mock_get_redis_client():
+        return mock_redis_client
+
+    monkeypatch.setattr("feedstream.worker.get_redis_client", _mock_get_redis_client)
+    return mock_redis_client
+
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

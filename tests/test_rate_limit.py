@@ -38,4 +38,22 @@ async def test_rate_limit_exceeded_returns_429():
         limiter._storage_uri = previous_storage_uri
         limiter._limiter = previous_limiter
         limiter.enabled = previous_enabled
-        app.router.routes = [route for route in app.router.routes if route.path != "/__test_rate_limit"]
+        app.router.routes = [
+            route for route in app.router.routes if route.path != "/__test_rate_limit"
+        ]
+
+
+def test_rate_limit_storage_uri_derived_from_settings():
+    """Rate-limit storage must use the configured Redis URL, DB 1."""
+    from feedstream.rate_limiter import _rate_limit_storage_uri
+
+    assert _rate_limit_storage_uri("redis://localhost:6379/0") == "redis://localhost:6379/1"
+    assert _rate_limit_storage_uri("redis://:secret@cache:6379/0") == "redis://:secret@cache:6379/1"
+
+
+def test_rate_limit_configuration_values():
+    from feedstream.rate_limiter import get_rate_limit
+
+    assert get_rate_limit("ops") == "1000/hour"
+    assert get_rate_limit("events") == "100/minute"
+    assert get_rate_limit("unknown_tag") == "1000/hour"
