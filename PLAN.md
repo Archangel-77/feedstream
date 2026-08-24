@@ -121,9 +121,11 @@
 
 ---
 
-## Week 6 — Polish + write‑up (15–20 hours)
+## Week 6 — Polish + write‑up (15–20 hours) ✅
 
 **Goal:** Make the repo tell its own story. Most of this week is writing, not coding.
+
+> ✅ **Done.** README, `ARCHITECTURE.md`, ADRs, blog draft, and the final pass all landed — 14 commits pushed to `main`. The only open items are external: publish the blog, pin the repo + profile README, update CV/LinkedIn, and send the reviewer-feedback request (see `docs/career/week6-rollout-checklist.md`).
 
 - [x] Rewrite the README from scratch now that you know what the project actually is. Structure: one‑sentence pitch, live demo link, Grafana dashboard screenshot, why it exists, architecture diagram, key design decisions (link to your ADRs), how to run it locally, testing strategy, deployment.
 - [x] Add an `ARCHITECTURE.md` with a diagram (use Mermaid — renders on GitHub). Show the data flow: source → worker → Postgres → cache → API → client.
