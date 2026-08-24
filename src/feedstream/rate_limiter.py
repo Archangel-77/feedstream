@@ -1,12 +1,8 @@
-from typing import Dict
-
-import redis.asyncio as redis
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
-from feedstream.redis_client import get_redis_client
+from feedstream.settings import settings
 
 
 def get_identifier(request) -> str:
@@ -14,23 +10,31 @@ def get_identifier(request) -> str:
     return get_remote_address(request)
 
 
-async def get_redis_connection() -> redis.Redis:
-    """Get Redis connection for rate limiting."""
-    redis_client_instance = await get_redis_client()
-    return await redis_client_instance.connect()
+def _rate_limit_storage_uri(redis_url: str) -> str:
+    """Derive the rate-limit storage URI from the configured Redis URL (DB 1).
+
+    Rate limits are stored in Redis database 1 so they are shared across API
+    replicas, while the response cache lives in DB 0.
+    """
+    base, _, _db = redis_url.rpartition("/")
+    if base.startswith("redis"):
+        return f"{base}/1"
+    # Fallback if the configured URL is malformed.
+    return "redis://localhost:6379/1"
 
 
-# Create rate limiter instance
+# Create rate limiter instance. Storage URI is derived from settings so that
+# production replicas share the same Redis backend.
 limiter = Limiter(
     key_func=get_identifier,
-    storage_uri="redis://localhost:6379/1",  # Use separate Redis DB for rate limiting
-    default_limits=["1000/hour"]  # Default limit
+    storage_uri=_rate_limit_storage_uri(settings.redis_url),
+    default_limits=["1000/hour"],  # Default limit
 )
 
 
 # Rate limit configurations
-RATE_LIMITS: Dict[str, str] = {
-    "ops": "1000/hour",      # Health endpoints
+RATE_LIMITS: dict[str, str] = {
+    "ops": "1000/hour",  # Health endpoints
     "events": "100/minute",  # Event querying endpoints
     "default": "1000/hour",  # Everything else
 }
@@ -44,15 +48,14 @@ def get_rate_limit(tag: str) -> str:
 # Rate limit exception handler
 async def rate_limit_exceeded_handler(request, exc: RateLimitExceeded):
     """Custom handler for rate limit exceeded."""
-    from fastapi import Request
     from fastapi.responses import JSONResponse
-    
+
     return JSONResponse(
         status_code=429,
         content={
             "detail": "Rate limit exceeded",
             "error": f"Too many requests. Limit: {exc.detail}",
-            "retry_after": exc.detail.split(" ")[-1] if exc.detail else "60"
+            "retry_after": exc.detail.split(" ")[-1] if exc.detail else "60",
         },
-        headers={"Retry-After": "60"}
+        headers={"Retry-After": "60"},
     )
