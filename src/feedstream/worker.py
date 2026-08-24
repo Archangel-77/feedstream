@@ -24,6 +24,7 @@ from feedstream.observability.metrics import (
 from feedstream.observability.tracing import new_trace_id, set_ingestion_trace_id
 from feedstream.redis_client import get_redis_client
 from feedstream.settings import settings
+from feedstream.worker_metrics import start_metrics_server
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +91,12 @@ async def run() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _handle_signal)
 
+    start_metrics_server(port=settings.worker_metrics_port)
     set_worker_state("retrying")
-    logger.info("Worker started", extra={"env": settings.app_env})
+    logger.info(
+        "Worker started",
+        extra={"env": settings.app_env, "metrics_port": settings.worker_metrics_port},
+    )
     await ingest_loop()
     set_worker_state("disconnected")
     logger.info("Worker stopped cleanly")

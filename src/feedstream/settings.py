@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     debug_stats_token: str = "local-dev-token"
     enable_metrics: bool = True
     enable_docs: bool = True
+    worker_metrics_port: int = 9100
     retention_days: int = 30
     retention_batch_size: int = 5000
     retention_interval_minutes: int = 1440
