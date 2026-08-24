@@ -1,12 +1,16 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from feedstream.database import AsyncSessionLocal
+from feedstream.logging_config import configure_logging
 from feedstream.models import Event
+from feedstream.observability.metrics import observe_retention_deletes
 from feedstream.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -36,8 +40,9 @@ async def run_retention_once(
         stmt = delete(Event).where(Event.id.in_(batch_ids))
         delete_result = await session.execute(stmt)
         await session.commit()
-        deleted = int(delete_result.rowcount or 0)
+        deleted = int(cast(CursorResult, delete_result).rowcount or 0)
         total_deleted += deleted
+        observe_retention_deletes(deleted)
 
         if deleted < batch_size:
             break
@@ -71,5 +76,5 @@ async def retention_loop() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=settings.log_level)
+    configure_logging(settings.log_level)
     asyncio.run(retention_loop())

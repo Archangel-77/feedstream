@@ -1,23 +1,26 @@
 import json
-import uuid
-from typing import Any, Optional
+from typing import Any
 
 import redis.asyncio as redis
 from redis.asyncio import Redis
 
+from feedstream.observability.metrics import (
+    METRIC_CACHE_HITS_TOTAL,
+    METRIC_CACHE_MISSES_TOTAL,
+    observe_cache_invalidation,
+)
 from feedstream.settings import Settings
-from feedstream.observability.metrics import METRIC_CACHE_HITS_TOTAL, METRIC_CACHE_MISSES_TOTAL
 
 
 class RedisClient:
     """Async Redis client with caching utilities."""
-    
+
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._client: Optional[Redis] = None
+        self._client: Redis | None = None
         self._hits = 0
         self._misses = 0
-    
+
     async def connect(self) -> Redis:
         """Initialize Redis connection."""
         if self._client is None:
@@ -27,14 +30,14 @@ class RedisClient:
                 decode_responses=True,
             )
         return self._client
-    
+
     async def disconnect(self) -> None:
         """Close Redis connection."""
         if self._client:
             await self._client.close()
             self._client = None
-    
-    async def get(self, key: str) -> Optional[Any]:
+
+    async def get(self, key: str) -> Any | None:
         """Get value from Redis cache."""
         client = await self.connect()
         try:
@@ -48,16 +51,16 @@ class RedisClient:
             return json.loads(value)
         except (json.JSONDecodeError, redis.RedisError):
             return None
-    
+
     async def set(self, key: str, value: Any, ttl: int = 300) -> bool:
         """Set value in Redis cache with TTL."""
         client = await self.connect()
         try:
             serialized = json.dumps(value, default=str)
             return await client.setex(key, ttl, serialized)
-        except (json.JSONEncodeError, redis.RedisError):
+        except (TypeError, ValueError, redis.RedisError):
             return False
-    
+
     async def delete(self, key: str) -> bool:
         """Delete key from Redis cache."""
         client = await self.connect()
@@ -65,18 +68,20 @@ class RedisClient:
             return bool(await client.delete(key))
         except redis.RedisError:
             return False
-    
+
     async def delete_pattern(self, pattern: str) -> int:
         """Delete keys matching pattern."""
         client = await self.connect()
         try:
             keys = await client.keys(pattern)
             if keys:
-                return await client.delete(*keys)
+                deleted = await client.delete(*keys)
+                observe_cache_invalidation(int(deleted or 0))
+                return int(deleted or 0)
             return 0
         except redis.RedisError:
             return 0
-    
+
     def generate_cache_key(self, prefix: str, **kwargs) -> str:
         """Generate cache key from parameters."""
         # Sort kwargs for consistent keys
@@ -92,7 +97,7 @@ class RedisClient:
 
 
 # Global Redis client instance
-redis_client: Optional[RedisClient] = None
+redis_client: RedisClient | None = None
 
 
 async def get_redis_client() -> RedisClient:
@@ -100,6 +105,7 @@ async def get_redis_client() -> RedisClient:
     global redis_client
     if redis_client is None:
         from feedstream.settings import get_settings
+
         settings = get_settings()
         redis_client = RedisClient(settings)
     return redis_client

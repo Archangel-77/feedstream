@@ -43,6 +43,16 @@ METRIC_CACHE_MISSES_TOTAL = Counter(
     "Total cache misses",
 )
 
+METRIC_CACHE_INVALIDATIONS_TOTAL = Counter(
+    "feedstream_cache_invalidations_total",
+    "Total cache entries invalidated after writes",
+)
+
+METRIC_RETENTION_DELETES_TOTAL = Counter(
+    "feedstream_retention_deletes_total",
+    "Total events deleted by the retention job",
+)
+
 METRIC_DB_POOL_CHECKED_OUT = Gauge(
     "feedstream_db_pool_checked_out",
     "Checked out DB connections",
@@ -83,6 +93,14 @@ def observe_db_pool(pool_stats: dict[str, int]) -> None:
     METRIC_DB_POOL_CHECKED_OUT.set(pool_stats.get("checked_out", 0))
     METRIC_DB_POOL_SIZE.set(pool_stats.get("size", 0))
     METRIC_DB_POOL_OVERFLOW.set(pool_stats.get("overflow", 0))
+
+
+def observe_cache_invalidation(count: int) -> None:
+    METRIC_CACHE_INVALIDATIONS_TOTAL.inc(count)
+
+
+def observe_retention_deletes(count: int) -> None:
+    METRIC_RETENTION_DELETES_TOTAL.inc(count)
 
 
 def get_metrics_payload() -> tuple[bytes, str]:
