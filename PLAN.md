@@ -125,12 +125,12 @@
 
 **Goal:** Make the repo tell its own story. Most of this week is writing, not coding.
 
-- [ ] Rewrite the README from scratch now that you know what the project actually is. Structure: one‑sentence pitch, live demo link, Grafana dashboard screenshot, why it exists, architecture diagram, key design decisions (link to your ADRs), how to run it locally, testing strategy, deployment.
-- [ ] Add an `ARCHITECTURE.md` with a diagram (use Mermaid — renders on GitHub). Show the data flow: source → worker → Postgres → cache → API → client.
-- [ ] Clean up any TODOs in the code. If it's not done by now, remove the TODO and file a GitHub issue instead.
-- [ ] Write 2–3 more ADRs covering the decisions you made in earlier weeks. Backfilling ADRs is legitimate and common — they document decisions, not the process of making them.
-- [ ] Write one blog post (Dev.to or Medium, or both): pick the single most interesting technical problem you solved (likely the circuit breaker or the dedup‑under‑load work) and write 800–1500 words about it. Link it from the repo README. Link the repo from the post.
-- [ ] Final pass: check every file has a reason to exist, every test asserts something meaningful, the commit history reads like a coherent story.
+- [x] Rewrite the README from scratch now that you know what the project actually is. Structure: one‑sentence pitch, live demo link, Grafana dashboard screenshot, why it exists, architecture diagram, key design decisions (link to your ADRs), how to run it locally, testing strategy, deployment.
+- [x] Add an `ARCHITECTURE.md` with a diagram (use Mermaid — renders on GitHub). Show the data flow: source → worker → Postgres → cache → API → client.
+- [x] Clean up any TODOs in the code. If it's not done by now, remove the TODO and file a GitHub issue instead.
+- [x] Write 2–3 more ADRs covering the decisions you made in earlier weeks. Backfilling ADRs is legitimate and common — they document decisions, not the process of making them.
+- [x] Write one blog post (Dev.to or Medium, or both): pick the single most interesting technical problem you solved (likely the circuit breaker or the dedup‑under‑load work) and write 800–1500 words about it. Link it from the repo README. Link the repo from the post.
+- [x] Final pass: check every file has a reason to exist, every test asserts something meaningful, the commit history reads like a coherent story.
 - [ ] Add the project prominently to your GitHub profile README (pin it), update your CV experience section to include it, and update your LinkedIn.
 
 **Target commits (~8, mostly docs):** rewrite README, add architecture doc, add mermaid diagram, backfill ADR 2, backfill ADR 3, clean up TODOs, add blog post link, final polish.
