@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, JSON, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -23,7 +23,4 @@ class Event(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    dedup_key: Mapped[str | None] = mapped_column(Text, unique=True, nullable=False)
-
-
-
+    dedup_key: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
