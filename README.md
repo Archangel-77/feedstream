@@ -176,6 +176,7 @@ All runtime configuration is loaded via [pydantic-settings](https://docs.pydanti
 | `DEBUG_STATS_TOKEN` | `local-dev-token` | Bearer-style token required to call `/debug/stats` |
 | `ENABLE_METRICS` | `true` | Expose the `/metrics` endpoint |
 | `ENABLE_DOCS` | `true` | Expose `/docs`, `/redoc`, and `/openapi.json` |
+| `WORKER_METRICS_PORT` | `9100` | Port the worker's Prometheus `/metrics` endpoint listens on |
 | `RETENTION_DAYS` | `30` | Events older than this are purged by the retention job |
 | `RETENTION_BATCH_SIZE` | `5000` | Maximum rows deleted per retention run |
 | `RETENTION_INTERVAL_MINUTES` | `1440` | How often the retention job runs |
